@@ -1,0 +1,43 @@
+#PLS is more suitable for prediction than PCR, however, it is tough to deal with the outliers cluster
+#as required, we should fit a parsimonious model, PCR and PLS will involve too many 
+#predictors. So I would like to use linear model. For prediction, I can use CV to fit the
+#model, CV can also be treated as a criterion for any adjustment of model
+tempdata <- movie
+l <- 11
+CV <- numeric(19)
+for (i in 1 : 11){
+  if (i <= l){
+    temptest <- tempdata[c(0:19) * 11 + i, ]
+    temptrain <- tempdata[-(c(0:19) * 11 + i), ]
+  }
+  else {
+    temptest <- tempdata[c(0:18) * 11 + i, ]
+    temptrain <- tempdata[-(c(0:18) * 11 + i), ]
+  }
+  b <- regsubsets(Revenue ~ ., data = temptrain, nvmax = 19)
+  rs <- summary(b)
+  aicv <- rs$which
+  for (k in 1:19){
+    modeltemp <- lm(Revenue ~ ., temptrain[ , c(names(subset(aicv[k, -1], aicv[k, -1] == TRUE)), 'Revenue')])
+    CV[k] <- CV[k] + sqrt(mean((predict(modeltemp, temptest) - temptest$Revenue) ^ 2))
+  }
+}
+#CV suggests we should include 4 predictors in our model
+p <- which.min(CV)
+lastCV <- min(CV)
+b <- regsubsets(Revenue ~ ., data = movie, nvmax = 19)
+rs <- summary(b)
+aicv <- rs$which
+#they are X2, X4, X14 and X19
+modelml <- lm(Revenue ~ ., movie[ , c(names(subset(aicv[p, -1], aicv[p, -1] == TRUE)), 'Revenue')])
+summary(modelml)
+#diagnosis
+plot(fitted(modelml),residuals(modelml),xlab="Fitted",ylab="Residuals")
+abline(h=0)
+#suffer from an outlier
+stud <- rstudent(modelml)
+stud[which.max(abs(stud))]
+cook <- cooks.distance(modelml)
+halfnorm(cook,3,ylab="Cook’s distances")
+#the second observation is an outlier and also an influential observation, X1 and X15 of
+#this observation is the minimum of all observations, while the Revenue is the maximum, try to remove it 
